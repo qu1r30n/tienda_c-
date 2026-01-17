@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <direct.h>  // para _mkdir en Windows
+#include <errno.h>
 
 #define MAX_LINEA 1024
 #define COLUMNAS 33
@@ -9,7 +11,14 @@
 
 // ================= VARIABLES GLOBALES =================
 static const char* G_caracter_separacion[] = { "|", "°", "¬", "╦", "╔" };
-static const char* G_archivos = {"C:\\Users\\qu1r30n\\Documents\\pru c++\\punto_ventainventario.txt"};
+
+// Arreglo bidimensional de archivos y nombres de columnas
+static const char* G_archivos[][2] = {
+    { "C:\\Users\\qu1r30n\\Documents\\GitHub\\tienda_c-\\inventario.txt",
+      "ID|Producto|Contenido|TipoMedida|PrecioVenta|CodBarras|Cantidad|CostoCompra|Proveedor|Col10|Col11|Col12|Col13|Col14|Col15|Col16|Col17|Fecha" }
+};
+
+static const int G_cantidad_archivos = sizeof(G_archivos) / sizeof(G_archivos[0]);
 
 // ================= SPLIT =================
 char** split(const char* texto, const char* sep, int* count) {
@@ -61,14 +70,55 @@ void fechaActual(char* buffer, const char* formato) {
     strftime(buffer, 20, formato, tm_info);
 }
 
+// ================= INICIALIZAR ARCHIVOS =================
+void crearDirectorioSiNoExiste(const char* rutaArchivo) {
+    char ruta[512];
+    strcpy(ruta, rutaArchivo);
+    char* ultimoBackslash = strrchr(ruta, '\\');
+    if (ultimoBackslash) {
+        *ultimoBackslash = '\0'; // solo queda la carpeta
+        int res = _mkdir(ruta);
+        if (res == 0) {
+            printf("Directorio creado: %s\n", ruta);
+        } else if (res == -1 && errno != EEXIST) {
+            printf("ERROR: No se pudo crear directorio %s\n", ruta);
+            exit(1);
+        }
+    }
+}
+
+void inicializarArchivos() {
+    for (int i = 0; i < G_cantidad_archivos; i++) {
+        crearDirectorioSiNoExiste(G_archivos[i][0]);
+        FILE* f = fopen(G_archivos[i][0], "r");
+        if (!f) {
+            printf("Archivo no existe. Creando: %s\n", G_archivos[i][0]);
+            f = fopen(G_archivos[i][0], "w");
+            if (!f) {
+                printf("ERROR: No se pudo crear el archivo %s\n", G_archivos[i][0]);
+                exit(1);
+            }
+            // Escribir la primera línea con los nombres de las columnas
+            fprintf(f, "%s\n", G_archivos[i][1]);
+            fclose(f);
+        } else {
+            fclose(f);
+        }
+    }
+}
+
 // ================= LEER INVENTARIO =================
 int leerInventario(char inventario[][COLUMNAS][256], int maxProductos) {
-    FILE* f = fopen(G_archivo_inventario, "r");
+    FILE* f = fopen(G_archivos[0][0], "r");
     if (!f) return 0;
     char linea[MAX_LINEA];
     int i = 0;
+
+    // Leer la primera línea (nombres de columnas) y descartarla
+    fgets(linea, MAX_LINEA, f);
+
     while (fgets(linea, MAX_LINEA, f) && i < maxProductos) {
-        linea[strcspn(linea, "\n")] = 0; // quitar \n
+        linea[strcspn(linea, "\n")] = 0; 
         int n;
         char** partes = split(linea, G_caracter_separacion[0], &n);
         for (int j = 0; j < COLUMNAS; j++) {
@@ -84,8 +134,14 @@ int leerInventario(char inventario[][COLUMNAS][256], int maxProductos) {
 
 // ================= GUARDAR INVENTARIO =================
 void guardarInventario(char inventario[][COLUMNAS][256], int n) {
-    FILE* f = fopen(G_archivo_inventario, "w");
-    if (!f) return;
+    FILE* f = fopen(G_archivos[0][0], "w");
+    if (!f) {
+        printf("ERROR: No se pudo guardar el inventario\n");
+        return;
+    }
+    // Escribir la primera línea con nombres de columnas
+    fprintf(f, "%s\n", G_archivos[0][1]);
+
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < COLUMNAS; j++) {
             fprintf(f, "%s", inventario[i][j]);
@@ -211,12 +267,14 @@ int editar_precio(char* codigo, char* precio, char* proveedor) {
 
 // ================= MENU PRINCIPAL =================
 int main() {
+    inicializarArchivos();
+
     int opcion;
     do {
         printf("\n--- POS TIENDA ---\n");
         printf("1. Venta\n2. Compra\n3. Agregar producto\n4. Editar precio\n0. Salir\nOpcion: ");
         scanf("%d", &opcion);
-        getchar(); // limpiar buffer
+        getchar();
 
         if (opcion == 1) {
             char codigo[50], sucursal[50]; int cantidad;
