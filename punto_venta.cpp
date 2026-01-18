@@ -5,19 +5,27 @@
 #include <direct.h>  // para _mkdir en Windows
 #include <errno.h>
 
-#define MAX_LINEA 1024
-#define COLUMNAS 33
-#define MAX_PRODUCTOS 1000
+#define MAX_LINEA 1024    // Tamaño máximo de línea en archivos
+#define COLUMNAS 33       // Número de columnas en inventario
+#define MAX_PRODUCTOS 1000 // Máximo número de productos
 
 // ================= VARIABLES GLOBALES =================
+// Clase que contiene las variables globales de separación de columnas
+// y rutas de archivos (simulando base de datos)
 class var_fun_GG 
 {
 public:
+    // Separadores posibles de campos
     static const char* G_caracter_separacion[5];
+    
+    // Arreglo bidimensional de archivos y nombres de columnas
     static const char* G_archivos[1][2];
+    
+    // Cantidad de archivos definidos
     static const int G_cantidad_archivos;
 };
 
+// Definición de los miembros estáticos
 const char* var_fun_GG::G_caracter_separacion[5] = { "|", "°", "¬", "╦", "╔" };
 
 const char* var_fun_GG::G_archivos[1][2] = {
@@ -30,9 +38,11 @@ const char* var_fun_GG::G_archivos[1][2] = {
 const int var_fun_GG::G_cantidad_archivos = 1;
 
 // ================= OPERACIONES DE TEXTO =================
+// Funciones de manejo de cadenas, split y liberación de memoria
 class operaciones_textos 
 {
 public:
+    // Divide un texto en un arreglo de cadenas según el separador
     char** split(const char* texto, const char* sep, int* count) {
         char* copia = strdup(texto);
         int capacidad = 10;
@@ -69,6 +79,7 @@ public:
         return resultados;
     }
 
+    // Libera memoria del arreglo de strings creado con split
     void free_split(char** array, int count) {
         for (int i = 0; i < count; i++)
             free(array[i]);
@@ -77,9 +88,11 @@ public:
 };
 
 // ================= OPERACIONES DE FECHA =================
+// Funciones para obtener fecha actual
 class operaciones_compu 
 {
 public:
+    // Escribe la fecha actual en buffer con el formato deseado
     void fechaActual(char* buffer, const char* formato) {
         time_t t = time(NULL);
         struct tm* tm_info = localtime(&t);
@@ -88,9 +101,12 @@ public:
 };
 
 // ================= CLASE TEX_BAS (BASE DE DATOS) =================
+// Clase que maneja la lectura/escritura de archivos como si fuera
+// una base de datos y funciones de edición/incremento de celdas
 class tex_bas : public operaciones_textos, public operaciones_compu
 {
 public:
+    // Crea el directorio si no existe
     void crearDirectorioSiNoExiste(const char* rutaArchivo) {
         char ruta[512];
         strcpy(ruta, rutaArchivo);
@@ -107,6 +123,7 @@ public:
         }
     }
 
+    // Inicializa archivos de inventario (crea si no existen)
     void inicializarArchivos() {
         for (int i = 0; i < var_fun_GG::G_cantidad_archivos; i++) {
             crearDirectorioSiNoExiste(var_fun_GG::G_archivos[i][0]);
@@ -126,6 +143,7 @@ public:
         }
     }
 
+    // Lee el inventario del archivo en un arreglo tridimensional
     int leerInventario(char inventario[][COLUMNAS][256], int maxProductos) {
         FILE* f = fopen(var_fun_GG::G_archivos[0][0], "r");
         if (!f) return 0;
@@ -150,6 +168,7 @@ public:
         return i;
     }
 
+    // Guarda inventario en el archivo
     void guardarInventario(char inventario[][COLUMNAS][256], int n) {
         FILE* f = fopen(var_fun_GG::G_archivos[0][0], "w");
         if (!f) {
@@ -168,12 +187,14 @@ public:
         fclose(f);
     }
 
+    // Edita una celda específica y guarda el inventario
     int editar_celda(char inventario[][COLUMNAS][256], int fila, int columna, const char* valor) {
         strcpy(inventario[fila][columna], valor);
         guardarInventario(inventario, fila + 1);
         return 1;
     }
 
+    // Incrementa el valor de una celda numérica
     int incrementar_celda(char inventario[][COLUMNAS][256], int fila, int columna, int cantidad) {
         int val = atoi(inventario[fila][columna]);
         val += cantidad;
@@ -182,6 +203,7 @@ public:
         return val;
     }
 
+    // Agrega una fila completa al inventario
     void agregar_fila(char inventario[][COLUMNAS][256], char fila[][256], int& n) {
         for (int j = 0; j < COLUMNAS; j++) strcpy(inventario[n][j], fila[j]);
         n++;
@@ -190,9 +212,12 @@ public:
 };
 
 // ================= CLASE OPERACIONES_TIENDA (CONTROLADOR) =================
+// Aquí se manejan las operaciones de venta, compra, edición de precio,
+// y se usa la base de datos (tex_bas) para modificar los datos
 class operaciones_tienda : public tex_bas
 {
 public:
+    // Busca un producto por código de barras o código interno
     int buscarProducto(char inventario[][COLUMNAS][256], int n, const char* codigo) {
         for (int i = 0; i < n; i++) {
             if (strcmp(inventario[i][5], codigo) == 0 || strcmp(inventario[i][12], codigo) == 0)
@@ -201,6 +226,7 @@ public:
         return -1;
     }
 
+    // Venta: decrementa stock, registra movimiento
     int venta(char* codigo, int cantidad, char* sucursal) {
         char inventario[MAX_PRODUCTOS][COLUMNAS][256];
         int n = leerInventario(inventario, MAX_PRODUCTOS);
@@ -231,6 +257,7 @@ public:
         return 1;
     }
 
+    // Compra: incrementa stock, registra movimiento
     int compra(char* codigo, int cantidad, char* proveedor) {
         char inventario[MAX_PRODUCTOS][COLUMNAS][256];
         int n = leerInventario(inventario, MAX_PRODUCTOS);
@@ -259,6 +286,7 @@ public:
         return 1;
     }
 
+    // Edita precio de un producto
     int editar_precio(char* codigo, char* precio, char* proveedor) {
         char inventario[MAX_PRODUCTOS][COLUMNAS][256];
         int n = leerInventario(inventario, MAX_PRODUCTOS);
@@ -275,6 +303,7 @@ public:
         return 1;
     }
 
+    // Agregar producto nuevo
     void agregar_producto(char* id, char* producto, char* contenido, char* tipo_medida,
                           char* precio_venta, char* cod_barras, char* cantidad,
                           char* costo_comp, char* proveedor) {
@@ -294,6 +323,7 @@ public:
         agregar_fila(inventario, fila, n);
     }
 
+    // Registra movimiento diario, mensual y anual
     void registrarMovimiento(const char* tipo, const char* registro) {
         char dia[20], mes[20], anio[20];
         fechaActual(dia, "%Y%m%d");
