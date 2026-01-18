@@ -13,22 +13,28 @@
 class var_fun_GG 
 {
 public:
-    static inline const char* G_caracter_separacion[5] = { "|", "°", "¬", "╦", "╔" };
-    static inline const char* G_archivos[1][2] = {
-        {
-            "C:\\Users\\qu1r30n\\Documents\\GitHub\\tienda_c-\\inventario.txt",
-            "ID|Producto|Contenido|TipoMedida|PrecioVenta|CodBarras|Cantidad|CostoCompra|Proveedor|Col10|Col11|Col12|Col13|Col14|Col15|Col16|Col17|Fecha"
-        }
-    };
-    static inline const int G_cantidad_archivos = sizeof(G_archivos) / sizeof(G_archivos[0]);
+    static const char* G_caracter_separacion[5];
+    static const char* G_archivos[1][2];
+    static const int G_cantidad_archivos;
 };
 
+const char* var_fun_GG::G_caracter_separacion[5] = { "|", "°", "¬", "╦", "╔" };
+
+const char* var_fun_GG::G_archivos[1][2] = {
+    { 
+        "C:\\Users\\qu1r30n\\Documents\\GitHub\\tienda_c-\\inventario.txt",
+        "ID|Producto|Contenido|TipoMedida|PrecioVenta|CodBarras|Cantidad|CostoCompra|Proveedor|Col10|Col11|Col12|Col13|Col14|Col15|Col16|Col17|Fecha"
+    }
+};
+
+const int var_fun_GG::G_cantidad_archivos = 1;
+
 // ================= OPERACIONES DE TEXTO =================
-class operaciones_textos
+class operaciones_textos 
 {
 public:
-    static char** split(const char* texto, const char* sep, int* count) {
-        char* copia = _strdup(texto);
+    char** split(const char* texto, const char* sep, int* count) {
+        char* copia = strdup(texto);
         int capacidad = 10;
         char** resultados = (char**)malloc(sizeof(char*) * capacidad);
         int n = 0;
@@ -51,7 +57,7 @@ public:
             token = strstr(inicio, sep);
         }
 
-        char* parte = _strdup(inicio);
+        char* parte = strdup(inicio);
         if (n >= capacidad) {
             capacidad *= 2;
             resultados = (char**)realloc(resultados, sizeof(char*) * capacidad);
@@ -63,7 +69,7 @@ public:
         return resultados;
     }
 
-    static void free_split(char** array, int count) {
+    void free_split(char** array, int count) {
         for (int i = 0; i < count; i++)
             free(array[i]);
         free(array);
@@ -71,49 +77,64 @@ public:
 };
 
 // ================= OPERACIONES DE FECHA =================
-class operaciones_compu
+class operaciones_compu 
 {
 public:
-    static void fechaActual(char* buffer, const char* formato) {
+    void fechaActual(char* buffer, const char* formato) {
         time_t t = time(NULL);
         struct tm* tm_info = localtime(&t);
         strftime(buffer, 20, formato, tm_info);
     }
 };
 
-// ================= BASE DE DATOS (ARCHIVOS) =================
+// ================= CLASE TEX_BAS (BASE DE DATOS) =================
 class tex_bas : public operaciones_textos, public operaciones_compu
 {
 public:
-    static void crearDirectorioSiNoExiste(const char* rutaArchivo) {
+    void crearDirectorioSiNoExiste(const char* rutaArchivo) {
         char ruta[512];
         strcpy(ruta, rutaArchivo);
         char* ultimoBackslash = strrchr(ruta, '\\');
         if (ultimoBackslash) {
-            *ultimoBackslash = '\0';
+            *ultimoBackslash = '\0'; // solo queda la carpeta
             int res = _mkdir(ruta);
-            if (res == 0) printf("Directorio creado: %s\n", ruta);
+            if (res == 0) {
+                printf("Directorio creado: %s\n", ruta);
+            } else if (res == -1 && errno != EEXIST) {
+                printf("ERROR: No se pudo crear directorio %s\n", ruta);
+                exit(1);
+            }
         }
     }
 
-    static void inicializarArchivos() {
+    void inicializarArchivos() {
         for (int i = 0; i < var_fun_GG::G_cantidad_archivos; i++) {
             crearDirectorioSiNoExiste(var_fun_GG::G_archivos[i][0]);
             FILE* f = fopen(var_fun_GG::G_archivos[i][0], "r");
             if (!f) {
+                printf("Archivo no existe. Creando: %s\n", var_fun_GG::G_archivos[i][0]);
                 f = fopen(var_fun_GG::G_archivos[i][0], "w");
-                fprintf(f, "%s\n", var_fun_GG::G_archivos[i][1]);
+                if (!f) {
+                    printf("ERROR: No se pudo crear el archivo %s\n", var_fun_GG::G_archivos[i][0]);
+                    exit(1);
+                }
+                fprintf(f, "%s\n", var_fun_GG::G_archivos[i][1]); // nombres de columnas
                 fclose(f);
-            } else fclose(f);
+            } else {
+                fclose(f);
+            }
         }
     }
 
-    static int leerInventario(char inventario[][COLUMNAS][256], int maxProductos) {
+    int leerInventario(char inventario[][COLUMNAS][256], int maxProductos) {
         FILE* f = fopen(var_fun_GG::G_archivos[0][0], "r");
         if (!f) return 0;
         char linea[MAX_LINEA];
         int i = 0;
-        fgets(linea, MAX_LINEA, f); // cabecera
+
+        // leer primera línea de columnas y descartarla
+        fgets(linea, MAX_LINEA, f);
+
         while (fgets(linea, MAX_LINEA, f) && i < maxProductos) {
             linea[strcspn(linea, "\n")] = 0;
             int n;
@@ -129,109 +150,174 @@ public:
         return i;
     }
 
-    static void guardarInventario(char inventario[][COLUMNAS][256], int n) {
+    void guardarInventario(char inventario[][COLUMNAS][256], int n) {
         FILE* f = fopen(var_fun_GG::G_archivos[0][0], "w");
-        if (!f) return;
-        fprintf(f, "%s\n", var_fun_GG::G_archivos[0][1]);
+        if (!f) {
+            printf("ERROR: No se pudo guardar el inventario\n");
+            return;
+        }
+        fprintf(f, "%s\n", var_fun_GG::G_archivos[0][1]); // primera línea: nombres columnas
+
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < COLUMNAS; j++) {
                 fprintf(f, "%s", inventario[i][j]);
-                if (j < COLUMNAS - 1)
-                    fprintf(f, "%s", var_fun_GG::G_caracter_separacion[0]);
+                if (j < COLUMNAS - 1) fprintf(f, "%s", var_fun_GG::G_caracter_separacion[0]);
             }
             fprintf(f, "\n");
         }
         fclose(f);
     }
 
-    static int buscarProducto(char inventario[][COLUMNAS][256], int n, const char* codigo) {
-        for (int i = 0; i < n; i++)
-            if (strcmp(inventario[i][5], codigo) == 0 || strcmp(inventario[i][12], codigo) == 0)
-                return i;
-        return -1;
-    }
-
-    static void agregar_producto(char* id, char* producto, char* contenido, char* tipo_medida,
-                                 char* precio_venta, char* cod_barras, char* cantidad, char* costo_comp, char* proveedor) {
-        char inventario[MAX_PRODUCTOS][COLUMNAS][256];
-        int n = leerInventario(inventario, MAX_PRODUCTOS);
-        char fila[COLUMNAS][256];
-        for (int i = 0; i < COLUMNAS; i++) strcpy(fila[i], "0");
-        strcpy(fila[0], id); strcpy(fila[1], producto); strcpy(fila[2], contenido);
-        strcpy(fila[3], tipo_medida); strcpy(fila[4], precio_venta); strcpy(fila[5], cod_barras);
-        strcpy(fila[6], cantidad); strcpy(fila[7], costo_comp); strcpy(fila[8], proveedor);
-        fechaActual(fila[18], "%Y-%m-%d");
-        for (int j = 0; j < COLUMNAS; j++) strcpy(inventario[n][j], fila[j]);
-        guardarInventario(inventario, n + 1);
-    }
-
-    static int editar_precio(char* codigo, char* precio, char* proveedor) {
-        char inventario[MAX_PRODUCTOS][COLUMNAS][256];
-        int n = leerInventario(inventario, MAX_PRODUCTOS);
-        int idx = buscarProducto(inventario, n, codigo);
-        if (idx == -1) return 0;
-        strcpy(inventario[idx][4], precio);
-        strcpy(inventario[idx][8], proveedor);
-        fechaActual(inventario[idx][18], "%Y-%m-%d");
-        guardarInventario(inventario, n);
+    int editar_celda(char inventario[][COLUMNAS][256], int fila, int columna, const char* valor) {
+        strcpy(inventario[fila][columna], valor);
+        guardarInventario(inventario, fila + 1);
         return 1;
+    }
+
+    int incrementar_celda(char inventario[][COLUMNAS][256], int fila, int columna, int cantidad) {
+        int val = atoi(inventario[fila][columna]);
+        val += cantidad;
+        sprintf(inventario[fila][columna], "%d", val);
+        guardarInventario(inventario, fila + 1);
+        return val;
+    }
+
+    void agregar_fila(char inventario[][COLUMNAS][256], char fila[][256], int& n) {
+        for (int j = 0; j < COLUMNAS; j++) strcpy(inventario[n][j], fila[j]);
+        n++;
+        guardarInventario(inventario, n);
     }
 };
 
-// ================= PROCESOS TIENDA =================
+// ================= CLASE OPERACIONES_TIENDA (CONTROLADOR) =================
 class operaciones_tienda : public tex_bas
 {
 public:
-    static void registrarMovimiento(const char* tipo, const char* registro) {
+    int buscarProducto(char inventario[][COLUMNAS][256], int n, const char* codigo) {
+        for (int i = 0; i < n; i++) {
+            if (strcmp(inventario[i][5], codigo) == 0 || strcmp(inventario[i][12], codigo) == 0)
+                return i;
+        }
+        return -1;
+    }
+
+    int venta(char* codigo, int cantidad, char* sucursal) {
+        char inventario[MAX_PRODUCTOS][COLUMNAS][256];
+        int n = leerInventario(inventario, MAX_PRODUCTOS);
+        int idx = buscarProducto(inventario, n, codigo);
+        if (idx == -1) return 0;
+
+        int stock = atoi(inventario[idx][6]);
+        int cantPaquete = atoi(inventario[idx][10]);
+        int esPaquete = atoi(inventario[idx][11]);
+        int mov = (esPaquete == 1) ? cantPaquete * cantidad : cantidad;
+
+        if (stock < mov) return 0;
+
+        stock -= mov;
+        sprintf(inventario[idx][6], "%d", stock);
         char fecha[20];
-        fechaActual(fecha, "%Y%m%d");
-        char archivo[256];
-        sprintf(archivo, "%s_%s.txt", tipo, fecha);
-        FILE* f = fopen(archivo, "a");
-        if (f) { fprintf(f, "%s\n", registro); fclose(f); }
-    }
-
-    static int venta(char* codigo, int cantidad, char* sucursal) {
-        char inventario[MAX_PRODUCTOS][COLUMNAS][256];
-        int n = leerInventario(inventario, MAX_PRODUCTOS);
-        int idx = buscarProducto(inventario, n, codigo);
-        if (idx == -1) return 0;
-        int stock = atoi(inventario[idx][6]);
-        if (stock < cantidad) return 0;
-        stock -= cantidad;
-        sprintf(inventario[idx][6], "%d", stock);
-        fechaActual(inventario[idx][18], "%Y-%m-%d");
-        guardarInventario(inventario, n);
-        char registro[512], fecha[20];
         fechaActual(fecha, "%Y-%m-%d");
+        strcpy(inventario[idx][18], fecha);
+
+        guardarInventario(inventario, n);
+
+        char registro[512];
         sprintf(registro, "%s%s%d%s%s%s%s", codigo, var_fun_GG::G_caracter_separacion[0], cantidad,
-                var_fun_GG::G_caracter_separacion[0], sucursal, var_fun_GG::G_caracter_separacion[0], fecha);
+                var_fun_GG::G_caracter_separacion[0], sucursal,
+                var_fun_GG::G_caracter_separacion[0], fecha);
         registrarMovimiento("ventas", registro);
+
         return 1;
     }
 
-    static int compra(char* codigo, int cantidad, char* proveedor) {
+    int compra(char* codigo, int cantidad, char* proveedor) {
         char inventario[MAX_PRODUCTOS][COLUMNAS][256];
         int n = leerInventario(inventario, MAX_PRODUCTOS);
         int idx = buscarProducto(inventario, n, codigo);
         if (idx == -1) return 0;
+
         int stock = atoi(inventario[idx][6]);
-        stock += cantidad;
+        int cantPaquete = atoi(inventario[idx][10]);
+        int esPaquete = atoi(inventario[idx][11]);
+        int mov = (esPaquete == 1) ? cantPaquete * cantidad : cantidad;
+
+        stock += mov;
         sprintf(inventario[idx][6], "%d", stock);
-        fechaActual(inventario[idx][18], "%Y-%m-%d");
-        guardarInventario(inventario, n);
-        char registro[512], fecha[20];
+        char fecha[20];
         fechaActual(fecha, "%Y-%m-%d");
+        strcpy(inventario[idx][18], fecha);
+
+        guardarInventario(inventario, n);
+
+        char registro[512];
         sprintf(registro, "%s%s%d%s%s%s%s", codigo, var_fun_GG::G_caracter_separacion[0], cantidad,
-                var_fun_GG::G_caracter_separacion[0], proveedor, var_fun_GG::G_caracter_separacion[0], fecha);
+                var_fun_GG::G_caracter_separacion[0], proveedor,
+                var_fun_GG::G_caracter_separacion[0], fecha);
         registrarMovimiento("compras", registro);
+
         return 1;
+    }
+
+    int editar_precio(char* codigo, char* precio, char* proveedor) {
+        char inventario[MAX_PRODUCTOS][COLUMNAS][256];
+        int n = leerInventario(inventario, MAX_PRODUCTOS);
+        int idx = buscarProducto(inventario, n, codigo);
+        if (idx == -1) return 0;
+
+        strcpy(inventario[idx][4], precio);
+        strcpy(inventario[idx][8], proveedor);
+        char fecha[20];
+        fechaActual(fecha, "%Y-%m-%d");
+        strcpy(inventario[idx][18], fecha);
+
+        guardarInventario(inventario, n);
+        return 1;
+    }
+
+    void agregar_producto(char* id, char* producto, char* contenido, char* tipo_medida,
+                          char* precio_venta, char* cod_barras, char* cantidad,
+                          char* costo_comp, char* proveedor) {
+        char inventario[MAX_PRODUCTOS][COLUMNAS][256];
+        int n = leerInventario(inventario, MAX_PRODUCTOS);
+
+        char fila[COLUMNAS][256];
+        for (int i = 0; i < COLUMNAS; i++) strcpy(fila[i], "0");
+
+        strcpy(fila[0], id); strcpy(fila[1], producto); strcpy(fila[2], contenido);
+        strcpy(fila[3], tipo_medida); strcpy(fila[4], precio_venta); strcpy(fila[5], cod_barras);
+        strcpy(fila[6], cantidad); strcpy(fila[7], costo_comp); strcpy(fila[8], proveedor);
+        char fecha[20];
+        fechaActual(fecha, "%Y-%m-%d");
+        strcpy(fila[18], fecha);
+
+        agregar_fila(inventario, fila, n);
+    }
+
+    void registrarMovimiento(const char* tipo, const char* registro) {
+        char dia[20], mes[20], anio[20];
+        fechaActual(dia, "%Y%m%d");
+        fechaActual(mes, "%Y%m");
+        fechaActual(anio, "%Y");
+
+        char archivo[256];
+        FILE* f;
+
+        sprintf(archivo, "%s_dia_%s.txt", tipo, dia);
+        f = fopen(archivo, "a"); fprintf(f, "%s\n", registro); fclose(f);
+
+        sprintf(archivo, "%s_mes_%s.txt", tipo, mes);
+        f = fopen(archivo, "a"); fprintf(f, "%s\n", registro); fclose(f);
+
+        sprintf(archivo, "%s_anio_%s.txt", tipo, anio);
+        f = fopen(archivo, "a"); fprintf(f, "%s\n", registro); fclose(f);
     }
 };
 
-// ================= MENU PRINCIPAL =================
+// ================= MENU PRINCIPAL (VISTA) =================
 int main() {
-    tex_bas::inicializarArchivos();
+    operaciones_tienda tienda;
+    tienda.inicializarArchivos();
 
     int opcion;
     do {
@@ -245,7 +331,7 @@ int main() {
             printf("Codigo de barras: "); scanf("%s", codigo);
             printf("Cantidad: "); scanf("%d", &cantidad);
             printf("Sucursal: "); scanf("%s", sucursal);
-            if (operaciones_tienda::venta(codigo, cantidad, sucursal)) printf("Venta realizada\n");
+            if (tienda.venta(codigo, cantidad, sucursal)) printf("Venta realizada\n");
             else printf("Stock insuficiente o codigo invalido\n");
         }
         else if (opcion == 2) {
@@ -253,7 +339,7 @@ int main() {
             printf("Codigo de barras: "); scanf("%s", codigo);
             printf("Cantidad: "); scanf("%d", &cantidad);
             printf("Proveedor: "); scanf("%s", proveedor);
-            if (operaciones_tienda::compra(codigo, cantidad, proveedor)) printf("Compra realizada\n");
+            if (tienda.compra(codigo, cantidad, proveedor)) printf("Compra realizada\n");
             else printf("Codigo invalido\n");
         }
         else if (opcion == 3) {
@@ -268,7 +354,7 @@ int main() {
             printf("Cantidad: "); scanf("%s", cantidad);
             printf("Costo compra: "); scanf("%s", costo_comp);
             printf("Proveedor: "); scanf("%s", proveedor);
-            tex_bas::agregar_producto(id, producto, contenido, tipo_medida, precio_venta, cod_barras, cantidad, costo_comp, proveedor);
+            tienda.agregar_producto(id, producto, contenido, tipo_medida, precio_venta, cod_barras, cantidad, costo_comp, proveedor);
             printf("Producto agregado\n");
         }
         else if (opcion == 4) {
@@ -276,7 +362,7 @@ int main() {
             printf("Codigo de barras: "); scanf("%s", codigo);
             printf("Nuevo precio: "); scanf("%s", precio);
             printf("Proveedor: "); scanf("%s", proveedor);
-            if (tex_bas::editar_precio(codigo, precio, proveedor)) printf("Precio editado\n");
+            if (tienda.editar_precio(codigo, precio, proveedor)) printf("Precio editado\n");
             else printf("Codigo invalido\n");
         }
     } while (opcion != 0);
