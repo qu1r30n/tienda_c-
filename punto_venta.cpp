@@ -13,9 +13,14 @@
 static const char* G_caracter_separacion[] = { "|", "°", "¬", "╦", "╔" };
 
 // Arreglo bidimensional de archivos y nombres de columnas
-static const char* G_archivos[][2] = {
-    { "C:\\Users\\qu1r30n\\Documents\\GitHub\\tienda_c-\\inventario.txt",
-      "ID|Producto|Contenido|TipoMedida|PrecioVenta|CodBarras|Cantidad|CostoCompra|Proveedor|Col10|Col11|Col12|Col13|Col14|Col15|Col16|Col17|Fecha" }
+static const char* G_archivos[][2] = 
+{
+    
+	{ 
+		"C:\\Users\\qu1r30n\\Documents\\GitHub\\tienda_c-\\inventario.txt",
+		"ID|Producto|Contenido|TipoMedida|PrecioVenta|CodBarras|Cantidad|CostoCompra|Proveedor|Col10|Col11|Col12|Col13|Col14|Col15|Col16|Col17|Fecha" 
+	}
+	
 };
 
 static const int G_cantidad_archivos = sizeof(G_archivos) / sizeof(G_archivos[0]);
